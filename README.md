@@ -1,2 +1,7 @@
-# mx_frente_corrupcion
-En este repositorio se encuentra la información relevante del estudio de opinión "Los Mexicanos Frente a la Corrupción y la Impunidad, 2019".
+# Los Mexicanos Frente a la Corrupción y la Impunidad 2019
+
+En este repositorio se encuentra la información relevante del estudio de opinión **Los Mexicanos Frente a la Corrupción y la Impunidad 2019** de *Mexicanos Contra la Corrupción y la Impunidad* y el equipo de datos del diario *Reforma*. Éste se compone de tres carpetas:
+
+- La carpeta **01_datos** contiene la base de datos original constrída por el equipo de *Datología* del periódico *Reforma* en formato `.sav` de nombre *Base Encuesta Nacional Corrupción*, para su consumo en el doftware *SPSS*. Sin embargo, se generaron, con base en dicha base original, dos archivos en formato `.csv` para su consumo en otras plataformas. El primero lleva el nombre de *encuesta.csv* y contiene la información de la base original sin etiquetas. Un archvo complementario, de nombre *codebook.csv*, contiene los nombres de las variables y su respectiva descripción.
+- La carpeta **02_cuestionarios** contiene los cuestionarios que el equipo de encuestadoras y encuestadores de *Reforma* utilizó para recoletar la información depositada en la base de datos, así como las tarjetas usadas para el experimento de listas.
+- La carpeta **03_codigo** contiene un archivo de nombre *como_tratar_R* en formato `.Rmd`, y una versión en `.pdf`, que contiene información sobre el uso de la base y sus factores de expansión en **R**, con base en el paquete `svyr` de [Greg Freedman](https://cran.r-project.org/web/packages/srvyr/vignettes/srvyr-vs-survey.html). Asimismo, se incluye una propuesta para graficar en el archivo de nombre *como_graficar*.

@@ -1,0 +1,210 @@
+---
+title: "¿Cómo tratar la Encuesta Reforma-MCCI con R?"
+author: "Manuel Toral"
+date: "March 19, 2019"
+output:
+  pdf_document: 
+    number_sections: yes
+    toc: yes
+  html_document: default
+---
+
+\pagebreak
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Objetivo
+
+El objetivo de este `R Markdown` es usar la *Encuesta Reforma-MCCI* de manera analítica con base en *R*.
+
+# Librerías necesarias
+
+```{r librerias}
+library(tidyverse) # El set de herramientas que ya conocemos y amamos.
+
+library(foreign) # Para llamar datos de otros formatos.
+
+library(srvyr) # La librería necesaria para poder tratar encuestas.
+
+# devtools::install_github("Rapporter/pander@06c2f65") #Si hay problemas con los acentos en pander.
+```
+
+
+# ¿Cómo empiezo a usar los datos de la encuesta?
+
+## Importar los datos
+
+El primer paso es usar los datos disponibles de origen en formato *.sav*. Para hacer esto es necesario usar el comando `read.spss()` de la librería *foreign*.
+
+La base de datos de dicho archivo se guarda en el objeto `encuesta`. Este método tiene una ventaja fundamental: *nos permite conservar las etiquetas que definen cada variable*.
+
+&nbsp;
+
+```{r llamar}
+encuesta <- read.spss("Base Encuesta Nacional Corrupción.sav") %>%
+              as.tibble() # Para convertir la base de datos en un "tibble"
+```
+
+## Exploración de la base
+
+El siguiente *chunk* sólo muestra una forma práctica de explorar los datos.
+
+&nbsp;
+
+```{r explorar}
+glimpse(encuesta)
+```
+
+
+## Hacer un codebook con las variables
+
+Gracias que tenemos las etiquetas de cada variable, podemos construir un codebook para guiarnos. Esto se hace con el siguiente código, que hace un *tibble* con dos columnas. La primera es el nombre de cada una de las variables del dataset extraídas con `colnames()`. La segunda es una variable llamada *etiqueta* que se conatruye con los "atributos" (etiquetas) de cada una de las variables de la primera columna. 
+
+&nbsp;
+
+```{r codebook}
+codebook  <- tibble(pregunta =colnames(encuesta)) %>%
+                mutate(etiqueta = 
+                         attr(encuesta,"variable.labels"))
+
+```
+
+&nbsp;
+
+```{r}
+pander::pander(codebook) 
+```
+
+
+# Escribir *codebook* y datos en un *.csv*
+
+&nbsp;
+
+```{r escribir}
+write.csv(encuesta, "encuesta.csv")
+write.csv(codebook, "codebook.csv")
+```
+
+&nbsp;
+
+# ¿Cómo utilizo «formalmente» los datos de la encuesta?
+
+Las encuestas con diseños muestrales representativos que tratan de representar a una población finita más grande. Por lo tanto, cada vez que hagamos cálculos o estimaciones con estos datos tenemos que hacerlo *con base en el diseño muestral y no con los datos crudos*.
+
+## Crear el diseño
+
+Aquí es donde entra el paquete `srvyr`. El comando `as_survey_design()` tiene, en nuestro caso, dos argumentos. El primero es el grupo de "clusterización", útil en algunos casos con encuestas más grandes. Como no tenemos, simplemente asignamos el valor "1". El segundo argumento es `weight`, que definiremos con la variable *FE_Final_* que representa el factor de expansión de esta muestra. 
+
+&nbsp;
+
+```{r}
+design <- encuesta %>%
+  as_survey_design(ids=1, 
+                   weight= FE_Final_)
+```
+
+# ¿Cómo hago una tabla ponderada con las variables dela encuesta?
+
+## Tabla de contingencia de una variable
+
+Para hacer una tabla de contingencia de una sola variable, con base en el diseño muestral, necesitamos un set diferente de comandos que responden a la sintaxis del *tidyverse*. 
+
+Como la mayoría de las preguntas están codificadas a modo de variables categóricas el procedimiento es casi siempre el mismo:
+
+1. Se agrupa la variable sobre sus categorías con el comando `group_by()`.
+2. Así como en un proceso normal con el *tidyverse*, se utiliza `summarise` para obtener la suma o la proporción de respuestas por cada una de las categorías agrupadas en el paso anterior.
+3. Se nombran las variables de la tabla con base en los argumentos de `summarise`. Estos son principalmente de dos tipos:
+    1. `survey_total()` para obtener las frecuencias por categoría.
+    2. `survey_mean()` para obtener la proporción con respecto al total.
+
+El siguiente *chunk* toma como ejemplo la pregunta *P39D*: *¿Usted está de acuerdo o en desacuerdo con las siguientes frases? d. Castigar la corrupción con penas más severas ayudaría a reducirla*. Esta pregunta tiene 3 posibles respuestas y, por tanto, categorías:
+
+1. De acuerdo
+2. En desacuerdo
+3. Ns/Nc        
+
+
+&nbsp;
+
+```{r}
+# Guardo este proceso en un objeto para hacer una tabla bonita en el siguiente chunk.
+
+P39D <- design %>% 
+  group_by(P39D) %>%
+  summarise(total = survey_total(), # Yo asigné el nombre "total".
+          prop = survey_mean())  # Yo asigné el nombre "prop".
+```
+
+```{r}
+pander::pander(P39D)
+```
+
+Es posible observar que el comando da como resultado una *tibble* de **3** observaciones y **5** columnas. Cada una de las observaciones corresponde a una posible respuesta a la pregunta.
+
+Con respecto a las variables, éstas tienen un nombre que nosotras podemos asignar a discreción antes de invocar los argumento de `summarise` con un signo de `=` y presentan la siguiente información:
+
+1. *total* muestra la frecuencia estimada por cada respuesta.
+2. *total_se* muestra el *error estándar* de dicha estimación
+3. *prop* muestra la proporción con respecto al número total que contestó la pregunta y,
+4. *prop_se* muestra el *error estándar* de dicha estimación.
+
+## Gráfica para una variable
+
+La gráfica para la tabla anterior resulta sencilla en la medida que el resultado es un *tibble* común y corriente. Por ejemplo, para graficar las proporciones (*prop*) por respuesta se puede usar el siguiente *chunk*.
+
+&nbsp;
+
+```{r}
+grP39D <- P39D %>% # Al abrir el flujo ya no necesito el arugmento "data="
+        ggplot(aes(x= P39D, # Las respuestas.
+             y= prop, # La variable de proporción.
+             fill= P39D)) + # Rellenar cada color por respuesta.
+        geom_col() + # La geometría básica de columnas. 
+        geom_errorbar(aes(ymin=prop-prop_se, 
+                     ymax=prop+prop_se),
+                     width=.1) # La geometría para poner los SE.
+grP39D
+```
+
+## Tabla de contingencia de dos variables
+
+El proceso es similar al de una variable. Simplemente debemos agregar la segunda variable al `group_by()`. Por ejemplo, si quiéramos repetir el ejercicio anterior, pero agrupando también por género (*B*) deberíamos redefinir el grupo como `group_by(P39D, B)`.
+
+&nbsp;
+
+
+```{r}
+
+P39DB <- design %>% 
+  group_by(P39D, B) %>%
+  summarise(total = survey_total(), # Yo asigné el nombre "total".
+          prop = survey_mean())  # Yo asigné el nombre "prop".
+```
+
+```{r}
+pander::pander(P39DB)
+``` 
+
+&nbsp;
+
+## Gráfica para dos variables
+
+
+De igual forma, hacer la gráfica parte del principio de que el resultado anterior es un *tibble*. Sin embargo, el argumento `fill` adquiere una importancia fundamental al permitirnos usar una tercera variable.
+
+&nbsp;
+
+```{r}
+grP39DB <- P39DB %>% # Al abrir el flujo ya no necesito el arugmento "data="
+        ggplot(aes(x= P39D, # Las respuestas.
+             y= prop, # La variable de proporción.
+             fill= B)) + # Rellenar cada color el segundo grupo.
+        geom_col(position="dodge") + # La posición "dodge". 
+        geom_errorbar(aes(ymin=prop-prop_se, 
+                     ymax=prop+prop_se),
+                     width=.1, 
+                 position=position_dodge(.9)) # La geometría para poner los SE.
+grP39DB
+```
